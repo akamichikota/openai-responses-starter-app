@@ -50,7 +50,6 @@ class NextJSChatManager {
         
         this.addMessage(userItem);
         Storage.addMessageToCache(this.currentSession.id, userItem);
-        console.log('💾 Saved user message to cache');
         
         try {
             this.isStreaming = true;
@@ -91,7 +90,6 @@ class NextJSChatManager {
      * Process stream event (exactly like NextJS processMessages)
      */
     async processStreamEvent(event, streamState) {
-        console.log('🎯 Processing stream event:', event);
         
         switch (event.event) {
             case "response.output_text.delta":
@@ -158,13 +156,11 @@ class NextJSChatManager {
                     
                     // Save to storage
                     Storage.addMessageToCache(this.currentSession.id, assistantMessage);
-                    console.log('💾 Saved completed assistant message to cache');
                 }
                 break;
             }
             
             case "response.completed": {
-                console.log("Response completed", event.data);
                 break;
             }
             
@@ -226,7 +222,6 @@ class NextJSChatManager {
             // Load cached messages if they exist
             const cachedMessages = Storage.getCachedMessages(session.id);
             if (cachedMessages.length > 0) {
-                console.log(`📂 Loading ${cachedMessages.length} cached messages`);
                 cachedMessages.forEach(msg => {
                     this.messages.push(msg);
                     UI.renderMessage(msg);
@@ -248,7 +243,6 @@ class NextJSChatManager {
         if (this.currentSession) {
             // Clear cached messages
             Storage.clearCachedMessages(this.currentSession.id);
-            console.log('🗑️ Cleared cached messages');
         }
         
         this.messages = [];

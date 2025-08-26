@@ -124,9 +124,20 @@ body {
     margin-bottom: 0.5em;
 }
 
+.markdown-content strong {
+    font-weight: 700 !important;
+}
+
+.markdown-content em {
+    font-style: italic;
+}
+
 .markdown-content h1 { font-size: 1.5em; }
 .markdown-content h2 { font-size: 1.3em; }
 .markdown-content h3 { font-size: 1.1em; }
+.markdown-content h4 { font-size: 1.05em; }
+.markdown-content h5 { font-size: 1em; }
+.markdown-content h6 { font-size: 0.95em; opacity: 0.8; }
 
 .markdown-content p {
     margin-bottom: 1em;
@@ -143,8 +154,17 @@ body {
     padding-left: 1.5em;
 }
 
+.markdown-content ol {
+    list-style-type: decimal;
+}
+
+.markdown-content ul {
+    list-style-type: disc;
+}
+
 .markdown-content li {
     margin-bottom: 0.25em;
+    line-height: 1.4;
 }
 
 .markdown-content code {
@@ -184,6 +204,65 @@ body {
 
 .markdown-content a:hover {
     color: #1d4ed8;
+}
+
+/* Additional Markdown Elements */
+.markdown-content del {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.markdown-content img {
+    margin: 1em 0;
+    border-radius: 0.5em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-content hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 2em 0;
+}
+
+.markdown-content blockquote {
+    background-color: #f9fafb;
+    border-left: 4px solid #3b82f6;
+    padding: 1em 1.5em;
+    margin: 1em 0;
+    font-style: italic;
+    color: #374151;
+}
+
+.markdown-content blockquote p {
+    margin-bottom: 0;
+}
+
+/* Nested lists */
+.markdown-content ul ul,
+.markdown-content ol ol,
+.markdown-content ul ol,
+.markdown-content ol ul {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+/* Table styling (if needed in future) */
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+    border: 1px solid #e5e7eb;
+    padding: 0.5em;
+    text-align: left;
+}
+
+.markdown-content table th {
+    background-color: #f9fafb;
+    font-weight: 600;
 }
 
 /* Custom Size Class */

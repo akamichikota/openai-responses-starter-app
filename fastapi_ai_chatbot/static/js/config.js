@@ -33,20 +33,6 @@ const APP_CONFIG = {
         progressiveLoading: true,
     },
     
-    // Performance Settings
-    VIRTUAL_SCROLL: {
-        ENABLED: true,
-        BUFFER_SIZE: 5,
-        ITEM_HEIGHT: 100,
-    },
-    
-    // Progressive Loading
-    PROGRESSIVE_LOADING: {
-        ENABLED: true,
-        BATCH_SIZE: 10,
-        DELAY: 100,
-    },
-    
     // Debounce/Throttle Times
     DEBOUNCE_DELAY: 300,
     THROTTLE_DELAY: 100,

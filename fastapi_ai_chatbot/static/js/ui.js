@@ -280,7 +280,7 @@ class NextJSUI {
                 marked.setOptions({
                     highlight: function(code, lang) {
                         // Basic syntax highlighting placeholder
-                        return `<code class="language-${lang || 'text'}">${this.escapeHtml(code)}</code>`;
+                        return `<code class="language-${lang || 'text'}">${Utils.escapeHtml(code)}</code>`;
                     },
                     breaks: true,
                     gfm: true
@@ -296,40 +296,64 @@ class NextJSUI {
         let formatted = content
             // Trim trailing whitespace and newlines
             .trim()
-            // Code blocks
+            // Code blocks with language support
             .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
             // Inline code
             .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-            // Bold
+            // Strikethrough
+            .replace(/~~(.*?)~~/g, '<del>$1</del>')
+            // Bold and Italic combined (must be first)
+            .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+            .replace(/___(.+?)___/g, '<strong><em>$1</em></strong>')
+            // Bold (both ** and __) - process before single * and _
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            // Italic
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            // Headers
+            .replace(/__(.*?)__/g, '<strong>$1</strong>')
+            // Italic (single * and _) - use word boundary to avoid conflict
+            .replace(/\b\*([^*\s][^*]*[^*\s])\*\b/g, '<em>$1</em>')
+            .replace(/\b_([^_\s][^_]*[^_\s])_\b/g, '<em>$1</em>')
+            // Handle single character italic
+            .replace(/\*([^*\s])\*/g, '<em>$1</em>')
+            .replace(/_([^_\s])_/g, '<em>$1</em>')
+            // Headers (h1-h6)
+            .replace(/^###### (.*$)/gim, '<h6>$1</h6>')
+            .replace(/^##### (.*$)/gim, '<h5>$1</h5>')
+            .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
             .replace(/^### (.*$)/gim, '<h3>$1</h3>')
             .replace(/^## (.*$)/gim, '<h2>$1</h2>')
             .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-            // Lists
-            .replace(/^\* (.*$)/gim, '<li>$1</li>')
-            .replace(/^- (.*$)/gim, '<li>$1</li>')
+            // Links
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+            // Images
+            .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto rounded">')
+            // Blockquotes
+            .replace(/^> (.+)/gm, '<blockquote class="border-l-4 border-gray-300 pl-4 italic">$1</blockquote>')
+            // Horizontal rule
+            .replace(/^---$/gm, '<hr class="my-4 border-gray-300">')
+            .replace(/^\*\*\*$/gm, '<hr class="my-4 border-gray-300">')
+            // Ordered lists (numbered)
+            .replace(/^(\d+)\. (.+)/gm, '<li class="ordered-list">$2</li>')
+            // Unordered lists
+            .replace(/^\* (.+)/gm, '<li class="unordered-list">$1</li>')
+            .replace(/^- (.+)/gm, '<li class="unordered-list">$1</li>')
+            .replace(/^\+ (.+)/gm, '<li class="unordered-list">$1</li>')
             // Line breaks
             .replace(/\n/g, '<br>');
         
-        // Wrap consecutive list items in ul tags
-        formatted = formatted.replace(/(<li>.*<\/li>)(<br>)*/g, function(_, listItems) {
-            return `<ul>${listItems.replace(/<br>/g, '')}</ul>`;
+        // Wrap consecutive ordered list items in ol tags
+        formatted = formatted.replace(/(<li class="ordered-list">[^<]*<\/li>(?:<br>)*)+/g, function(match) {
+            const cleanMatch = match.replace(/<br>/g, '').replace(/class="ordered-list"/g, '');
+            return `<ol>${cleanMatch}</ol>`;
+        });
+        
+        // Wrap consecutive unordered list items in ul tags
+        formatted = formatted.replace(/(<li class="unordered-list">[^<]*<\/li>(?:<br>)*)+/g, function(match) {
+            const cleanMatch = match.replace(/<br>/g, '').replace(/class="unordered-list"/g, '');
+            return `<ul>${cleanMatch}</ul>`;
         });
         
         return formatted;
     }
     
-    /**
-     * Escape HTML characters
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
     
     /**
      * Show loading indicator
@@ -369,8 +393,6 @@ class NextJSUI {
         const currentSession = Storage.getCurrentSession();
         const currentChatbot = Storage.getCurrentChatbot();
         
-        console.log('🔄 Restoring previous state:', { currentSession, currentChatbot });
-        
         if (currentSession && currentChatbot) {
             // Set current state in Chat manager
             Chat.currentSession = currentSession;
@@ -385,7 +407,6 @@ class NextJSUI {
             
             // Load cached messages
             const cachedMessages = Storage.getCachedMessages(currentSession.id);
-            console.log(`📂 Found ${cachedMessages.length} cached messages for session ${currentSession.id}`);
             
             if (cachedMessages.length > 0) {
                 Chat.messages = [];
@@ -396,10 +417,8 @@ class NextJSUI {
                     this.renderMessage(msg);
                 });
                 
-                console.log('✅ Restored chat history');
             }
         } else {
-            console.log('ℹ️ No previous state to restore');
         }
         
         // Load recent sessions for sidebar
@@ -414,7 +433,7 @@ class NextJSUI {
             const sessions = await API.getSessions(10, 0); // Get last 10 sessions
             this.renderRecentSessions(sessions);
         } catch (error) {
-            console.log('Could not load recent sessions:', error);
+            console.error('Could not load recent sessions:', error);
             // Try to load from cache
             const cachedSessions = Storage.getCachedSessions();
             if (cachedSessions.length > 0) {
@@ -540,7 +559,6 @@ class NextJSUI {
         try {
             // Delete from server
             await API.deleteSession(session.id);
-            console.log(`🗑️ Deleted session ${session.id} from server`);
             
             // Delete from local storage
             Storage.clearCachedMessages(session.id);
@@ -563,7 +581,6 @@ class NextJSUI {
             // Refresh the recent sessions list
             await this.loadRecentSessions();
             
-            console.log('✅ Session deleted successfully');
             
         } catch (error) {
             console.error('Failed to delete session:', error);
@@ -580,8 +597,7 @@ class NextJSUI {
         
         try {
             // Delete from server
-            const result = await API.bulkDeleteSessions();
-            console.log('🗑️ Bulk deleted sessions:', result.message);
+            await API.bulkDeleteSessions();
             
             // Clear all local storage
             Storage.cacheSessions([]);
@@ -607,7 +623,6 @@ class NextJSUI {
             // Refresh the recent sessions list
             await this.loadRecentSessions();
             
-            console.log('✅ All sessions deleted successfully');
             
         } catch (error) {
             console.error('Failed to bulk delete sessions:', error);
@@ -630,7 +645,6 @@ class NextJSUI {
         try {
             // Delete from server
             await API.deleteSession(Chat.currentSession.id);
-            console.log(`🗑️ Deleted current session ${Chat.currentSession.id} from server`);
             
             // Delete from local storage
             Storage.clearCachedMessages(Chat.currentSession.id);
@@ -653,7 +667,6 @@ class NextJSUI {
             // Refresh the recent sessions list
             await this.loadRecentSessions();
             
-            console.log('✅ Current session deleted successfully');
             
         } catch (error) {
             console.error('Failed to delete current session:', error);
@@ -672,8 +685,6 @@ class NextJSUI {
             alert('警告: ' + message);
         } else if (type === 'success') {
             alert('成功: ' + message);
-        } else {
-            console.log(message);
         }
     }
 }

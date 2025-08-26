@@ -63,7 +63,6 @@ class APIManager {
      * Stream chat messages
      */
     async streamChat(sessionId, message, onMessage, onError, onComplete) {
-        console.log('🚀 Starting stream chat:', { sessionId, message });
         const endpoint = '/api/chat/stream';
         const data = {
             session_id: sessionId,
@@ -72,7 +71,6 @@ class APIManager {
         };
         
         try {
-            console.log('📤 Sending stream request to:', `${this.baseURL}${endpoint}`);
             const response = await fetch(`${this.baseURL}${endpoint}`, {
                 method: 'POST',
                 headers: {
@@ -82,8 +80,6 @@ class APIManager {
                 body: JSON.stringify(data)
             });
             
-            console.log('📥 Stream response status:', response.status);
-            console.log('📥 Stream response headers:', [...response.headers.entries()]);
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -106,10 +102,8 @@ class APIManager {
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const dataStr = line.slice(6).trim();
-                        console.log('📡 Raw SSE data:', dataStr);
                         
                         if (dataStr === '[DONE]' || dataStr === 'data: [DONE]') {
-                            console.log('📡 Stream completed with [DONE]');
                             onComplete?.();
                             return;
                         }
@@ -128,7 +122,6 @@ class APIManager {
                                 }
                                 
                                 const event = JSON.parse(actualData);
-                                console.log('📡 Parsed SSE event:', event);
                                 onMessage(event);
                             } catch (err) {
                                 console.error('Error parsing SSE data:', err, 'Raw data:', dataStr);
