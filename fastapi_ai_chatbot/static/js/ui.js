@@ -265,19 +265,65 @@ class NextJSUI {
     }
     
     /**
-     * Format message content
+     * Format message content with full markdown support
      */
     formatContent(content) {
         if (!content) return '';
         
-        // Simple markdown-like formatting
+        try {
+            // Use marked.js for full markdown support if available
+            if (typeof marked !== 'undefined') {
+                // Configure marked for better code display
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        // Basic syntax highlighting placeholder
+                        return `<code class="language-${lang || 'text'}">${this.escapeHtml(code)}</code>`;
+                    },
+                    breaks: true,
+                    gfm: true
+                });
+                
+                return marked.parse(content);
+            }
+        } catch (error) {
+            console.warn('Marked.js error, falling back to simple formatting:', error);
+        }
+        
+        // Fallback: Enhanced simple markdown-like formatting
         let formatted = content
+            // Code blocks
+            .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
+            // Inline code
+            .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
+            // Bold
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            // Italic
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            // Headers
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+            // Lists
+            .replace(/^\* (.*$)/gim, '<li>$1</li>')
+            .replace(/^- (.*$)/gim, '<li>$1</li>')
+            // Line breaks
             .replace(/\n/g, '<br>');
         
+        // Wrap consecutive list items in ul tags
+        formatted = formatted.replace(/(<li>.*<\/li>)(<br>)*/g, function(match, listItems) {
+            return `<ul>${listItems.replace(/<br>/g, '')}</ul>`;
+        });
+        
         return formatted;
+    }
+    
+    /**
+     * Escape HTML characters
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
     
     /**
