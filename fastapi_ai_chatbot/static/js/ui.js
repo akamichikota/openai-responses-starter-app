@@ -270,6 +270,9 @@ class NextJSUI {
     formatContent(content) {
         if (!content) return '';
         
+        // Trim trailing whitespace and newlines first
+        content = content.trim();
+        
         try {
             // Use marked.js for full markdown support if available
             if (typeof marked !== 'undefined') {
@@ -291,6 +294,8 @@ class NextJSUI {
         
         // Fallback: Enhanced simple markdown-like formatting
         let formatted = content
+            // Trim trailing whitespace and newlines
+            .trim()
             // Code blocks
             .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
             // Inline code
@@ -310,7 +315,7 @@ class NextJSUI {
             .replace(/\n/g, '<br>');
         
         // Wrap consecutive list items in ul tags
-        formatted = formatted.replace(/(<li>.*<\/li>)(<br>)*/g, function(match, listItems) {
+        formatted = formatted.replace(/(<li>.*<\/li>)(<br>)*/g, function(_, listItems) {
             return `<ul>${listItems.replace(/<br>/g, '')}</ul>`;
         });
         

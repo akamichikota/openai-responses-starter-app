@@ -133,6 +133,10 @@ body {
     line-height: 1.6;
 }
 
+.markdown-content p:last-child {
+    margin-bottom: 0;
+}
+
 .markdown-content ul,
 .markdown-content ol {
     margin-bottom: 1em;
