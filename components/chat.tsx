@@ -47,40 +47,42 @@ const Chat: React.FC<ChatProps> = ({
   }, [items]);
 
   return (
-    <div className="flex justify-center items-center size-full">
-      <div className="flex grow flex-col h-full max-w-[750px] gap-2">
-        <div className="h-[90vh] overflow-y-scroll px-10 flex flex-col">
-          <div className="mt-auto space-y-5 pt-4">
-            {items.map((item, index) => (
-              <React.Fragment key={index}>
-                {item.type === "tool_call" ? (
-                  <ToolCall toolCall={item} />
-                ) : item.type === "message" ? (
-                  <div className="flex flex-col gap-1">
-                    <Message message={item} />
-                    {item.content &&
-                      item.content[0].annotations &&
-                      item.content[0].annotations.length > 0 && (
-                        <Annotations
-                          annotations={item.content[0].annotations}
-                        />
-                      )}
-                  </div>
-                ) : item.type === "mcp_list_tools" ? (
-                  <McpToolsList item={item} />
-                ) : item.type === "mcp_approval_request" ? (
-                  <McpApproval
-                    item={item as McpApprovalRequestItem}
-                    onRespond={onApprovalResponse}
-                  />
-                ) : null}
-              </React.Fragment>
-            ))}
-            {isAssistantLoading && <LoadingMessage />}
-            <div ref={itemsEndRef} />
+    <div className="flex justify-center items-center h-full">
+      <div className="flex grow flex-col h-full max-w-[750px]">
+        <div className="flex-1 overflow-y-auto px-10">
+          <div className="min-h-full flex flex-col justify-end">
+            <div className="space-y-5 pt-4">
+              {items.map((item, index) => (
+                <React.Fragment key={index}>
+                  {item.type === "tool_call" ? (
+                    <ToolCall toolCall={item} />
+                  ) : item.type === "message" ? (
+                    <div className="flex flex-col gap-1">
+                      <Message message={item} />
+                      {item.content &&
+                        item.content[0].annotations &&
+                        item.content[0].annotations.length > 0 && (
+                          <Annotations
+                            annotations={item.content[0].annotations}
+                          />
+                        )}
+                    </div>
+                  ) : item.type === "mcp_list_tools" ? (
+                    <McpToolsList item={item} />
+                  ) : item.type === "mcp_approval_request" ? (
+                    <McpApproval
+                      item={item as McpApprovalRequestItem}
+                      onRespond={onApprovalResponse}
+                    />
+                  ) : null}
+                </React.Fragment>
+              ))}
+              {isAssistantLoading && <LoadingMessage />}
+              <div ref={itemsEndRef} />
+            </div>
           </div>
         </div>
-        <div className="flex-1 p-4 px-10">
+        <div className="flex-shrink-0 p-4 px-10">
           <div className="flex items-center">
             <div className="flex w-full items-center pb-4 md:pb-1">
               <div className="flex w-full flex-col gap-1.5 rounded-[20px] p-2.5 pl-1.5 transition-colors bg-white border border-stone-200 shadow-sm">
