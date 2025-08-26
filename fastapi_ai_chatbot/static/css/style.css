@@ -112,6 +112,13 @@ body {
     color: #374151;
 }
 
+/* Message Bubble Width Control */
+.markdown-content {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+}
+
 /* Markdown Content */
 .markdown-content h1,
 .markdown-content h2,
@@ -173,6 +180,7 @@ body {
     border-radius: 0.25em;
     font-size: 0.875em;
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
+    word-break: break-word;
 }
 
 .markdown-content pre {
@@ -182,6 +190,9 @@ body {
     padding: 1em;
     overflow-x: auto;
     margin-bottom: 1em;
+    max-width: 100%;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .markdown-content pre code {
@@ -200,6 +211,7 @@ body {
 .markdown-content a {
     color: #3b82f6;
     text-decoration: underline;
+    word-break: break-all;
 }
 
 .markdown-content a:hover {
@@ -216,6 +228,8 @@ body {
     margin: 1em 0;
     border-radius: 0.5em;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    max-width: 100%;
+    height: auto;
 }
 
 .markdown-content hr {
