@@ -9,8 +9,9 @@ body {
 
 /* Tailwind Config */
 .icon-2xl {
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
+    display: block;
 }
 
 /* Message Animations */
@@ -209,4 +210,11 @@ body {
 
 .rounded-\[20px\] {
     border-radius: 20px;
+}
+
+/* 送信ボタンのアイコン中央配置 */
+#send-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }

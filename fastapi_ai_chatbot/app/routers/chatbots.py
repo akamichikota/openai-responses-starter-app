@@ -26,7 +26,6 @@ class ChatbotResponse(BaseModel):
     avatar_url: Optional[str]
     category: str
     model: str
-    welcome_message: Optional[str]
     suggested_prompts: List[str]
     theme_color: str
     is_featured: bool
@@ -45,7 +44,6 @@ class CreateChatbotRequest(BaseModel):
     category: str = "general"
     model: str = "gpt-4o"
     system_prompt: str
-    welcome_message: Optional[str] = None
     suggested_prompts: List[str] = []
     theme_color: str = "#667eea"
     tools_enabled: List[str] = []
@@ -101,7 +99,6 @@ async def get_chatbots(
                 avatar_url=bot.avatar_url,
                 category=bot.category,
                 model=bot.model,
-                welcome_message=bot.welcome_message,
                 suggested_prompts=bot.suggested_prompts or [],
                 theme_color=bot.theme_color,
                 is_featured=bot.is_featured,
@@ -143,7 +140,6 @@ async def get_chatbot(
             avatar_url=chatbot.avatar_url,
             category=chatbot.category,
             model=chatbot.model,
-            welcome_message=chatbot.welcome_message,
             suggested_prompts=chatbot.suggested_prompts or [],
             theme_color=chatbot.theme_color,
             is_featured=chatbot.is_featured,
@@ -187,7 +183,6 @@ async def get_chatbot_by_slug(
             avatar_url=chatbot.avatar_url,
             category=chatbot.category,
             model=chatbot.model,
-            welcome_message=chatbot.welcome_message,
             suggested_prompts=chatbot.suggested_prompts or [],
             theme_color=chatbot.theme_color,
             is_featured=chatbot.is_featured,

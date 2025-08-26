@@ -38,7 +38,6 @@ class Chatbot(Base):
     capabilities = Column(JSON, default=dict)   # Additional capabilities config
     
     # UI Configuration
-    welcome_message = Column(Text, nullable=True)
     suggested_prompts = Column(JSON, default=list)  # List of suggested prompts
     theme_color = Column(String, default="#667eea")
     
@@ -67,7 +66,6 @@ class Chatbot(Base):
             "avatar_url": self.avatar_url,
             "category": self.category,
             "model": self.model,
-            "welcome_message": self.welcome_message,
             "suggested_prompts": self.suggested_prompts,
             "theme_color": self.theme_color,
             "is_featured": self.is_featured,
