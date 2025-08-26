@@ -9,7 +9,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
@@ -56,8 +55,6 @@ app.add_middleware(
 # Mount static files
 app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
 
-# Setup templates
-templates = Jinja2Templates(directory=settings.TEMPLATES_DIR)
 
 # Include routers
 app.include_router(chat.router)
@@ -68,13 +65,7 @@ app.include_router(chatbots.router)
 async def root(request: Request):
     """Serve the main application"""
     index_path = Path(settings.STATIC_DIR) / "index.html"
-    if index_path.exists():
-        return FileResponse(index_path)
-    else:
-        return templates.TemplateResponse(
-            "index.html",
-            {"request": request, "app_name": settings.APP_NAME}
-        )
+    return FileResponse(index_path)
 
 
 @app.get("/health")

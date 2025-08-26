@@ -60,7 +60,6 @@ class Settings(BaseSettings):
     
     # Static Files Configuration
     STATIC_DIR: str = str(BASE_DIR / "static")
-    TEMPLATES_DIR: str = str(BASE_DIR / "templates")
     
     # Session Configuration
     SESSION_COOKIE_NAME: str = "chat_session_id"
@@ -82,4 +81,3 @@ settings = Settings()
 
 # Ensure directories exist
 Path(settings.STATIC_DIR).mkdir(parents=True, exist_ok=True)
-Path(settings.TEMPLATES_DIR).mkdir(parents=True, exist_ok=True)

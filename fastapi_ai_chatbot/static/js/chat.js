@@ -1,217 +1,178 @@
 /**
- * Chat management
+ * NextJS-style Chat Manager
  */
 
-class ChatManager {
+class NextJSChatManager {
     constructor() {
         this.currentSession = null;
         this.currentChatbot = null;
         this.messages = [];
         this.isStreaming = false;
-        this.isComposing = false;
         this.currentStreamingMessage = null;
-        this.currentContent = '';
+        this.assistantMessageContent = '';
     }
     
     /**
      * Initialize chat
      */
     async init() {
-        // Load current session and chatbot from storage
-        this.currentSession = Storage.getCurrentSession();
-        this.currentChatbot = Storage.getCurrentChatbot();
-        
-        if (this.currentSession && this.currentChatbot) {
-            await this.loadSession(this.currentSession.id);
-        }
-        
-        this.setupEventListeners();
+        // Setup is handled by UI
     }
     
     /**
-     * Setup event listeners
+     * Send message (NextJS style)
      */
-    setupEventListeners() {
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-        const clearButton = document.getElementById('clear-chat-btn');
-        const exportButton = document.getElementById('export-chat-btn');
+    async sendMessage(message) {
+        if (!message.trim() || this.isStreaming) return;
         
-        // Message input events
-        messageInput.addEventListener('input', (e) => {
-            this.handleInputChange(e);
-        });
-        
-        messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !this.isComposing) {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
-        
-        // IME composition events
-        messageInput.addEventListener('compositionstart', () => {
-            this.isComposing = true;
-        });
-        
-        messageInput.addEventListener('compositionend', () => {
-            this.isComposing = false;
-        });
-        
-        // Send button
-        sendButton.addEventListener('click', () => {
-            this.sendMessage();
-        });
-        
-        // Clear chat
-        clearButton?.addEventListener('click', () => {
-            this.clearChat();
-        });
-        
-        // Export chat
-        exportButton?.addEventListener('click', () => {
-            this.exportChat();
-        });
-    }
-    
-    /**
-     * Handle input change
-     */
-    handleInputChange(event) {
-        const input = event.target;
-        const charCount = document.getElementById('char-count');
-        const sendButton = document.getElementById('send-button');
-        
-        // Update character count
-        charCount.textContent = `${input.value.length}/${APP_CONFIG.MAX_MESSAGE_LENGTH}`;
-        
-        // Auto resize textarea
-        Utils.autoResizeTextarea(input);
-        
-        // Enable/disable send button
-        sendButton.disabled = !input.value.trim() || this.isStreaming;
-    }
-    
-    /**
-     * Send message
-     */
-    async sendMessage() {
-        const input = document.getElementById('message-input');
-        const message = input.value.trim();
-        
-        if (!message || this.isStreaming) return;
-        
-        if (!this.currentSession || !this.currentChatbot) {
-            UI.showNotification('Please select a chatbot first', 'warning');
+        if (!this.currentChatbot) {
+            UI.showNotification('最初にチャットボットを選択してください', 'warning');
             return;
         }
         
-        // Clear input
-        input.value = '';
-        this.handleInputChange({ target: input });
+        // Create session on first message if it doesn't exist
+        if (!this.currentSession) {
+            const session = await this.createSession(this.currentChatbot.id);
+            if (!session) {
+                UI.showNotification('セッションの作成に失敗しました', 'error');
+                return;
+            }
+        }
         
-        // Add user message
-        this.addMessage({
+        // Add user message (like NextJS)
+        const userItem = {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: message.trim() }],
             id: Utils.generateId(),
-            role: 'user',
-            content: message,
             timestamp: new Date().toISOString()
-        });
+        };
         
-        // Start streaming
-        this.isStreaming = true;
-        this.updateStreamingState(true);
-        
-        // Reset streaming state
-        this.currentStreamingMessage = null;
-        this.currentContent = '';
+        this.addMessage(userItem);
+        Storage.addMessageToCache(this.currentSession.id, userItem);
+        console.log('💾 Saved user message to cache');
         
         try {
+            this.isStreaming = true;
+            UI.showLoading(true);
+            
+            // Variables to track streaming state (like NextJS)
+            const streamState = { assistantMessageContent: "" };
+            
             await API.streamChat(
                 this.currentSession.id,
                 message,
-                // onMessage
-                (event) => {
-                    this.handleStreamEvent(event);
+                // onMessage callback (like NextJS handleTurn)
+                async (event) => {
+                    await this.processStreamEvent(event, streamState);
                 },
                 // onError
                 (error) => {
                     console.error('Chat error:', error);
                     this.isStreaming = false;
-                    this.updateStreamingState(false);
-                    UI.showNotification('Failed to send message', 'error');
+                    UI.showLoading(false);
+                    UI.showNotification('メッセージの送信に失敗しました', 'error');
                 },
                 // onComplete
                 () => {
                     this.isStreaming = false;
-                    this.updateStreamingState(false);
-                    
-                    // Save final message to storage
-                    if (this.currentStreamingMessage) {
-                        Storage.addMessageToCache(this.currentSession.id, {
-                            role: 'assistant',
-                            content: this.currentStreamingMessage.content
-                        });
-                    }
-                    
-                    // Reset streaming state
-                    this.currentStreamingMessage = null;
-                    this.currentContent = '';
+                    UI.showLoading(false);
                 }
             );
         } catch (error) {
             console.error('Send message error:', error);
             this.isStreaming = false;
-            this.updateStreamingState(false);
-            UI.showNotification('Failed to send message', 'error');
+            UI.showLoading(false);
+            UI.showNotification('メッセージの送信に失敗しました', 'error');
         }
     }
     
     /**
-     * Handle stream event
+     * Process stream event (exactly like NextJS processMessages)
      */
-    handleStreamEvent(event) {
+    async processStreamEvent(event, streamState) {
+        console.log('🎯 Processing stream event:', event);
+        
         switch (event.event) {
-            case 'response.output_text.delta':
-                if (event.data?.delta) {
-                    this.currentContent += event.data.delta;
+            case "response.output_text.delta":
+            case "response.output_text.annotation.added": {
+                const { delta, item_id, annotation } = event.data || {};
+                
+                let partial = "";
+                if (typeof delta === "string") {
+                    partial = delta;
+                }
+                streamState.assistantMessageContent += partial;
+                
+                // If the last message isn't an assistant message, create a new one
+                const lastItem = this.messages[this.messages.length - 1];
+                if (
+                    !lastItem ||
+                    lastItem.type !== "message" ||
+                    lastItem.role !== "assistant" ||
+                    (lastItem.id && lastItem.id !== item_id)
+                ) {
+                    const newMessage = {
+                        type: "message",
+                        role: "assistant",
+                        id: item_id,
+                        content: [
+                            {
+                                type: "output_text",
+                                text: streamState.assistantMessageContent,
+                            },
+                        ],
+                        timestamp: new Date().toISOString()
+                    };
                     
-                    // Find existing assistant message or create new one
-                    if (this.currentStreamingMessage) {
-                        this.currentStreamingMessage.content = this.currentContent;
-                        this.updateStreamingMessage(this.currentStreamingMessage);
-                    } else {
-                        // Create new assistant message
-                        this.currentStreamingMessage = {
-                            id: event.data.item_id || Utils.generateId(),
-                            role: 'assistant',
-                            content: this.currentContent,
-                            timestamp: new Date().toISOString()
-                        };
-                        this.addMessage(this.currentStreamingMessage);
+                    this.messages.push(newMessage);
+                    UI.renderMessage(newMessage);
+                    UI.showLoading(false); // Hide loading when first content arrives
+                } else {
+                    const contentItem = lastItem.content[0];
+                    if (contentItem && contentItem.type === "output_text") {
+                        contentItem.text = streamState.assistantMessageContent;
+                        if (annotation) {
+                            contentItem.annotations = [
+                                ...(contentItem.annotations ?? []),
+                                annotation,
+                            ];
+                        }
                     }
+                    UI.updateStreamingMessage(lastItem);
                 }
                 break;
-                
-            case 'response.output_item.done':
-                if (event.data?.item?.type === 'message') {
-                    const content = event.data.item.content?.[0]?.text || '';
-                    if (content && this.currentStreamingMessage) {
-                        this.currentStreamingMessage.content = content;
-                        this.updateStreamingMessage(this.currentStreamingMessage);
-                    }
+            }
+            
+            case "response.output_item.done": {
+                const { item } = event.data || {};
+                if (item && item.type === "message" && item.role === "assistant") {
+                    // Save completed assistant message
+                    const assistantMessage = {
+                        type: "message",
+                        role: "assistant",
+                        content: item.content || [{ type: "output_text", text: streamState.assistantMessageContent }],
+                        id: item.id,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    // Save to storage
+                    Storage.addMessageToCache(this.currentSession.id, assistantMessage);
+                    console.log('💾 Saved completed assistant message to cache');
                 }
                 break;
-                
-            case 'response.function_call_arguments.delta':
-                // Handle tool calls
-                this.handleToolCall(event);
+            }
+            
+            case "response.completed": {
+                console.log("Response completed", event.data);
                 break;
-                
-            case 'error':
+            }
+            
+            case "error": {
                 console.error('Stream error:', event.data);
-                UI.showNotification('An error occurred', 'error');
+                UI.showNotification('エラーが発生しました', 'error');
                 break;
+            }
         }
     }
     
@@ -221,84 +182,21 @@ class ChatManager {
     addMessage(message) {
         this.messages.push(message);
         UI.renderMessage(message);
-        
-        // Auto scroll
-        const settings = Storage.getSettings();
-        if (settings.autoScroll) {
-            UI.scrollToBottom();
-        }
-        
-        // Save to storage
-        Storage.addMessageToCache(this.currentSession.id, message);
     }
     
     /**
-     * Update streaming message
+     * Select chatbot and create session
      */
-    updateStreamingMessage(message) {
-        const element = document.querySelector(`[data-message-id="${message.id}"]`);
-        if (element) {
-            const content = element.querySelector('.message-text');
-            if (content) {
-                const settings = Storage.getSettings();
-                if (settings.enableMarkdown) {
-                    content.innerHTML = Utils.parseMarkdown(message.content);
-                } else {
-                    content.textContent = message.content;
-                }
-                
-                // Highlight code blocks
-                if (settings.enableHighlighting) {
-                    content.querySelectorAll('pre code').forEach(block => {
-                        Prism.highlightElement(block);
-                    });
-                }
-            }
-        } else {
-            this.addMessage(message);
-        }
-    }
-    
-    /**
-     * Handle tool call
-     */
-    handleToolCall(event) {
-        // Create tool call display
-        const toolCall = {
-            id: event.data?.item_id || Utils.generateId(),
-            type: 'tool_call',
-            name: event.data?.name || 'Function',
-            arguments: event.data?.arguments || '',
-            status: event.data?.status || 'in_progress'
-        };
+    async selectChatbot(chatbot) {
+        this.currentChatbot = chatbot;
+        Storage.setCurrentChatbot(chatbot);
         
-        UI.renderToolCall(toolCall);
-    }
-    
-    /**
-     * Load session
-     */
-    async loadSession(sessionId) {
-        try {
-            UI.showLoading(true);
-            
-            const sessionData = await API.getSession(sessionId);
-            
-            this.currentSession = sessionData.session;
-            this.messages = sessionData.messages || [];
-            
-            // Update UI
-            UI.clearMessages();
-            this.messages.forEach(message => {
-                UI.renderMessage(message);
-            });
-            
-            UI.showLoading(false);
-        } catch (error) {
-            console.error('Load session error:', error);
-            UI.showLoading(false);
-            UI.showNotification('Failed to load session', 'error');
-        }
+        // Clear current session - will be created on first message
+        this.currentSession = null;
+        this.messages = [];
+        Storage.setCurrentSession(null);
+        
+        return chatbot;
     }
     
     /**
@@ -310,47 +208,53 @@ class ChatManager {
             this.currentSession = session;
             Storage.setCurrentSession(session);
             
+            // Add session to cache
+            let cachedSessions = Storage.getCachedSessions();
+            const existingIndex = cachedSessions.findIndex(s => s.id === session.id);
+            if (existingIndex === -1) {
+                cachedSessions.unshift(session); // Add to beginning
+                if (cachedSessions.length > 20) {
+                    cachedSessions = cachedSessions.slice(0, 20); // Keep only last 20
+                }
+                Storage.cacheSessions(cachedSessions);
+            }
+            
             // Clear messages
             this.messages = [];
             UI.clearMessages();
             
-            // Welcome messages removed per user request
+            // Load cached messages if they exist
+            const cachedMessages = Storage.getCachedMessages(session.id);
+            if (cachedMessages.length > 0) {
+                console.log(`📂 Loading ${cachedMessages.length} cached messages`);
+                cachedMessages.forEach(msg => {
+                    this.messages.push(msg);
+                    UI.renderMessage(msg);
+                });
+            }
             
             return session;
         } catch (error) {
             console.error('Create session error:', error);
-            UI.showNotification('Failed to create session', 'error');
+            UI.showNotification('セッションの作成に失敗しました', 'error');
             return null;
         }
-    }
-    
-    /**
-     * Select chatbot
-     */
-    async selectChatbot(chatbot) {
-        this.currentChatbot = chatbot;
-        Storage.setCurrentChatbot(chatbot);
-        
-        // Create new session
-        const session = await this.createSession(chatbot.id);
-        
-        // Update UI
-        UI.updateChatbotInfo(chatbot);
-        UI.showSuggestedPrompts(chatbot.suggested_prompts || []);
-        
-        return session;
     }
     
     /**
      * Clear chat
      */
     clearChat() {
-        if (confirm('このチャットをクリアしてもよろしいですか？')) {
-            this.messages = [];
-            UI.clearMessages();
-            
-            // Welcome messages removed per user request
+        if (this.currentSession) {
+            // Clear cached messages
+            Storage.clearCachedMessages(this.currentSession.id);
+            console.log('🗑️ Cleared cached messages');
         }
+        
+        this.messages = [];
+        UI.clearMessages();
+        
+        // Welcome messages removed per user request
     }
     
     /**
@@ -358,7 +262,7 @@ class ChatManager {
      */
     async exportChat() {
         if (!this.currentSession) {
-            UI.showNotification('No active session', 'warning');
+            UI.showNotification('アクティブなセッションがありません', 'warning');
             return;
         }
         
@@ -369,31 +273,31 @@ class ChatManager {
             const filename = `chat_${this.currentSession.id}_${new Date().toISOString().slice(0, 10)}.${format === 'markdown' ? 'md' : 'json'}`;
             const content = format === 'markdown' ? exportData.content : JSON.stringify(exportData, null, 2);
             
-            Utils.downloadFile(content, filename, format === 'markdown' ? 'text/markdown' : 'application/json');
+            this.downloadFile(content, filename, format === 'markdown' ? 'text/markdown' : 'application/json');
             
-            UI.showNotification('Chat exported successfully', 'success');
+            UI.showNotification('チャットのエクスポートが完了しました', 'success');
         } catch (error) {
             console.error('Export error:', error);
-            UI.showNotification('Failed to export chat', 'error');
+            UI.showNotification('チャットのエクスポートに失敗しました', 'error');
         }
     }
     
     /**
-     * Update streaming state
+     * Download file
      */
-    updateStreamingState(isStreaming) {
-        const sendButton = document.getElementById('send-button');
-        const loadingMessage = document.getElementById('loading-message');
-        
-        sendButton.disabled = isStreaming;
-        
-        if (isStreaming) {
-            loadingMessage.classList.remove('hidden');
-        } else {
-            loadingMessage.classList.add('hidden');
-        }
+    downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
+    
 }
 
 // Create global chat instance
-const Chat = new ChatManager();
+const Chat = new NextJSChatManager();

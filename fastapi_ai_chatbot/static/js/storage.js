@@ -181,7 +181,7 @@ class StorageManager {
         // Add new message
         messages.push({
             ...message,
-            id: message.id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: message.id || `msg_${Utils.generateId()}`,
             timestamp: message.timestamp || new Date().toISOString()
         });
         

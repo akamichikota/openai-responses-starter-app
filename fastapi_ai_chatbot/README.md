@@ -112,16 +112,14 @@ app/
 static/
 ├── index.html          # Main application
 ├── css/
-│   ├── style.css      # Main styles
-│   ├── components.css # Component styles
-│   └── animations.css # Animations
+│   └── nextjs-style.css # NextJS-style styles and animations
 └── js/
-    ├── config.js      # Configuration
+    ├── config.js      # Application configuration
     ├── utils.js       # Utility functions
     ├── storage.js     # Local storage management
     ├── api.js         # API communication
-    ├── chat.js        # Chat logic
-    ├── ui.js          # UI management
+    ├── chat.js        # NextJS-style chat logic
+    ├── ui.js          # NextJS-style UI management
     └── app.js         # Main application
 ```
 

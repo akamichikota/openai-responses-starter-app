@@ -1,436 +1,631 @@
 /**
- * UI management
+ * NextJS-style UI Manager
  */
 
-const UI = {
+class NextJSUI {
+    constructor() {
+        this.isComposing = false;
+        this.currentSession = null;
+    }
+    
     /**
      * Initialize UI
      */
-    init() {
-        this.setupTheme();
-        this.setupMobileMenu();
-        this.setupScrollHandler();
-        this.setupSettings();
-        this.applySettings();
-    },
+    async init() {
+        this.setupEventListeners();
+        await this.loadChatbots();
+        
+        // Restore previous state if exists
+        await this.restorePreviousState();
+    }
     
     /**
-     * Setup theme
+     * Setup event listeners
      */
-    setupTheme() {
-        const theme = Storage.getTheme();
-        document.documentElement.setAttribute('data-theme', theme);
+    setupEventListeners() {
+        // Message input events
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
         
-        const themeToggle = document.getElementById('theme-toggle');
-        themeToggle?.addEventListener('click', () => {
-            const currentTheme = Storage.getTheme();
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            Storage.setTheme(newTheme);
-            
-            // Update icon
-            const icon = themeToggle.querySelector('i');
-            icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-        });
-    },
-    
-    /**
-     * Setup mobile menu
-     */
-    setupMobileMenu() {
-        const menuToggle = document.getElementById('mobile-menu-toggle');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarClose = document.getElementById('sidebar-toggle');
-        
-        menuToggle?.addEventListener('click', () => {
-            sidebar.classList.add('open');
+        messageInput.addEventListener('input', (e) => {
+            this.handleInputChange(e);
         });
         
-        sidebarClose?.addEventListener('click', () => {
-            sidebar.classList.remove('open');
-        });
-    },
-    
-    /**
-     * Setup scroll handler
-     */
-    setupScrollHandler() {
-        const messagesContainer = document.getElementById('messages-container');
-        const scrollToBottomBtn = document.getElementById('scroll-to-bottom');
-        
-        messagesContainer?.addEventListener('scroll', () => {
-            const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < APP_CONFIG.AUTO_SCROLL_THRESHOLD;
-            
-            if (isAtBottom) {
-                scrollToBottomBtn?.classList.add('hidden');
-            } else {
-                scrollToBottomBtn?.classList.remove('hidden');
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !this.isComposing) {
+                e.preventDefault();
+                this.sendMessage();
             }
         });
         
-        scrollToBottomBtn?.addEventListener('click', () => {
-            this.scrollToBottom();
+        // IME composition events
+        messageInput.addEventListener('compositionstart', () => {
+            this.isComposing = true;
         });
-    },
+        
+        messageInput.addEventListener('compositionend', () => {
+            this.isComposing = false;
+        });
+        
+        // Send button
+        sendButton.addEventListener('click', () => {
+            this.sendMessage();
+        });
+        
+        
+        // Clear chat button (Delete current session)
+        document.getElementById('clear-chat-btn').addEventListener('click', () => {
+            this.deleteCurrentSession();
+        });
+        
+        // Export chat button
+        document.getElementById('export-chat-btn').addEventListener('click', () => {
+            Chat.exportChat();
+        });
+        
+        // Bulk delete button
+        document.getElementById('bulk-delete-btn').addEventListener('click', () => {
+            this.bulkDeleteSessions();
+        });
+    }
     
     /**
-     * Setup settings
+     * Handle input change
      */
-    setupSettings() {
-        const settingsBtn = document.getElementById('settings-btn');
-        const settingsModal = document.getElementById('settings-modal');
-        const modalClose = settingsModal?.querySelector('.modal-close');
+    handleInputChange(event) {
+        const input = event.target;
+        const sendButton = document.getElementById('send-button');
         
-        settingsBtn?.addEventListener('click', () => {
-            settingsModal?.classList.remove('hidden');
-        });
+        // Auto resize textarea
+        this.autoResizeTextarea(input);
         
-        modalClose?.addEventListener('click', () => {
-            settingsModal?.classList.add('hidden');
-        });
-        
-        // Settings controls
-        const darkModeToggle = document.getElementById('dark-mode-toggle');
-        const fontSizeSelect = document.getElementById('font-size-select');
-        const enableMarkdown = document.getElementById('enable-markdown');
-        const enableHighlighting = document.getElementById('enable-highlighting');
-        const autoScroll = document.getElementById('auto-scroll');
-        const virtualScrolling = document.getElementById('virtual-scrolling');
-        const progressiveLoading = document.getElementById('progressive-loading');
-        
-        const settings = Storage.getSettings();
-        
-        // Apply current settings to controls
-        if (darkModeToggle) darkModeToggle.checked = Storage.getTheme() === 'dark';
-        if (fontSizeSelect) fontSizeSelect.value = settings.fontSize;
-        if (enableMarkdown) enableMarkdown.checked = settings.enableMarkdown;
-        if (enableHighlighting) enableHighlighting.checked = settings.enableHighlighting;
-        if (autoScroll) autoScroll.checked = settings.autoScroll;
-        if (virtualScrolling) virtualScrolling.checked = settings.virtualScrolling;
-        if (progressiveLoading) progressiveLoading.checked = settings.progressiveLoading;
-        
-        // Add event listeners
-        darkModeToggle?.addEventListener('change', (e) => {
-            Storage.setTheme(e.target.checked ? 'dark' : 'light');
-        });
-        
-        fontSizeSelect?.addEventListener('change', (e) => {
-            Storage.updateSettings({ fontSize: e.target.value });
-            this.applySettings();
-        });
-        
-        enableMarkdown?.addEventListener('change', (e) => {
-            Storage.updateSettings({ enableMarkdown: e.target.checked });
-        });
-        
-        enableHighlighting?.addEventListener('change', (e) => {
-            Storage.updateSettings({ enableHighlighting: e.target.checked });
-        });
-        
-        autoScroll?.addEventListener('change', (e) => {
-            Storage.updateSettings({ autoScroll: e.target.checked });
-        });
-        
-        virtualScrolling?.addEventListener('change', (e) => {
-            Storage.updateSettings({ virtualScrolling: e.target.checked });
-        });
-        
-        progressiveLoading?.addEventListener('change', (e) => {
-            Storage.updateSettings({ progressiveLoading: e.target.checked });
-        });
-    },
+        // Enable/disable send button
+        sendButton.disabled = !input.value.trim() || Chat.isStreaming;
+    }
     
     /**
-     * Apply settings
+     * Auto resize textarea
      */
-    applySettings() {
-        const settings = Storage.getSettings();
-        
-        // Apply font size
-        document.documentElement.style.fontSize = {
-            small: '14px',
-            medium: '16px',
-            large: '18px'
-        }[settings.fontSize] || '16px';
-    },
+    autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }
     
     /**
-     * Render message
+     * Send message
      */
-    renderMessage(message) {
-        const messagesList = document.getElementById('messages-list');
-        const settings = Storage.getSettings();
+    async sendMessage() {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
         
-        // Remove welcome message if exists
-        const welcomeMessage = messagesList.querySelector('.welcome-message');
-        if (welcomeMessage) {
-            welcomeMessage.remove();
+        if (!message || Chat.isStreaming) return;
+        
+        // Clear input
+        input.value = '';
+        input.style.height = 'auto';
+        this.handleInputChange({ target: input });
+        
+        // Send via chat manager
+        await Chat.sendMessage(message);
+    }
+    
+    /**
+     * Load chatbots
+     */
+    async loadChatbots() {
+        try {
+            const chatbots = await API.getChatbots();
+            
+            // Cache chatbots globally for getChatbot lookup
+            window.cachedChatbots = chatbots;
+            
+            this.renderChatbots(chatbots);
+        } catch (error) {
+            console.error('Failed to load chatbots:', error);
         }
+    }
+    
+    /**
+     * Render chatbots list
+     */
+    renderChatbots(chatbots) {
+        const container = document.getElementById('chatbot-list');
+        container.innerHTML = '';
         
-        const messageElement = Utils.createElement('div', ['message', `message-${message.role}`], {
-            'data-message-id': message.id
-        });
-        
-        const messageContent = Utils.createElement('div', ['message-content']);
-        const messageText = Utils.createElement('div', ['message-text']);
-        
-        // Parse content
-        let content = message.content;
-        if (typeof content === 'object' && content.length > 0) {
-            content = content[0].text || content[0].content || '';
-        }
-        
-        if (settings.enableMarkdown && message.role !== 'user') {
-            messageText.innerHTML = Utils.parseMarkdown(content);
-        } else {
-            messageText.textContent = content;
-        }
-        
-        messageContent.appendChild(messageText);
-        messageElement.appendChild(messageContent);
-        
-        // Add progressive loading animation
-        if (settings.progressiveLoading) {
-            messageElement.classList.add('progressive-enter');
-            setTimeout(() => {
-                messageElement.classList.add('progressive-enter-active');
-            }, 10);
-        }
-        
-        messagesList.appendChild(messageElement);
-        
-        // Highlight code blocks
-        if (settings.enableHighlighting) {
-            messageText.querySelectorAll('pre code').forEach(block => {
-                Prism.highlightElement(block);
-            });
-        }
-        
-        // Add copy buttons to code blocks
-        messageText.querySelectorAll('pre').forEach(pre => {
-            const copyBtn = Utils.createElement('button', ['code-copy-btn']);
-            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
-            copyBtn.addEventListener('click', async () => {
-                const code = pre.textContent;
-                const success = await Utils.copyToClipboard(code);
-                if (success) {
-                    copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                    copyBtn.classList.add('copied');
-                    setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
-                        copyBtn.classList.remove('copied');
-                    }, 2000);
-                }
+        chatbots.forEach(chatbot => {
+            const item = document.createElement('div');
+            item.className = 'p-3 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer transition-colors';
+            item.innerHTML = `
+                <h3 class="font-medium text-gray-900 text-sm">${chatbot.name}</h3>
+                <p class="text-xs text-gray-500 mt-1 line-clamp-2">${chatbot.description}</p>
+            `;
+            
+            item.addEventListener('click', () => {
+                this.selectChatbot(chatbot);
             });
             
-            const codeHeader = Utils.createElement('div', ['code-header']);
-            codeHeader.appendChild(copyBtn);
-            pre.insertBefore(codeHeader, pre.firstChild);
+            container.appendChild(item);
         });
-    },
-    
-    /**
-     * Render tool call
-     */
-    renderToolCall(toolCall) {
-        const messagesList = document.getElementById('messages-list');
-        
-        const toolElement = Utils.createElement('div', ['tool-call', 'tool-call-enter'], {
-            'data-tool-id': toolCall.id
-        });
-        
-        const header = Utils.createElement('div', ['tool-call-header']);
-        header.innerHTML = `
-            <i class="fas fa-cog"></i>
-            <span>${toolCall.status === 'completed' ? 'Executed' : 'Executing'}: ${toolCall.name}</span>
-        `;
-        
-        const content = Utils.createElement('div', ['tool-call-content']);
-        content.textContent = toolCall.arguments || 'Processing...';
-        
-        toolElement.appendChild(header);
-        toolElement.appendChild(content);
-        
-        messagesList.appendChild(toolElement);
-    },
-    
-    /**
-     * Render chatbot item
-     */
-    renderChatbot(chatbot, container) {
-        const item = Utils.createElement('div', ['chatbot-item'], {
-            'data-chatbot-id': chatbot.id
-        });
-        
-        item.innerHTML = `
-            <div class="chatbot-avatar">
-                <i class="fas fa-robot"></i>
-            </div>
-            <div class="chatbot-info">
-                <div class="chatbot-name">${chatbot.name}</div>
-                <div class="chatbot-category">${chatbot.category}</div>
-            </div>
-            ${chatbot.is_featured ? '<span class="badge badge-featured">Featured</span>' : ''}
-        `;
-        
-        item.addEventListener('click', () => {
-            this.selectChatbot(chatbot);
-        });
-        
-        container.appendChild(item);
-    },
-    
-    /**
-     * Render session item
-     */
-    renderSession(session, container) {
-        const item = Utils.createElement('div', ['session-item'], {
-            'data-session-id': session.id
-        });
-        
-        item.innerHTML = `
-            <div class="session-name">${session.name || 'Untitled Chat'}</div>
-            <div class="session-meta">
-                ${session.message_count} messages • ${Utils.formatDate(session.last_activity)}
-            </div>
-        `;
-        
-        item.addEventListener('click', () => {
-            this.selectSession(session);
-        });
-        
-        container.appendChild(item);
-    },
+    }
     
     /**
      * Select chatbot
      */
     async selectChatbot(chatbot) {
-        // Update UI
-        document.querySelectorAll('.chatbot-item').forEach(item => {
-            item.classList.remove('active');
-        });
+        // Update UI to show chat interface
+        this.showChatInterface();
         
-        const selectedItem = document.querySelector(`[data-chatbot-id="${chatbot.id}"]`);
-        selectedItem?.classList.add('active');
+        // Update header
+        document.getElementById('current-chatbot-name').textContent = chatbot.name;
+        document.getElementById('current-chatbot-desc').textContent = chatbot.description;
         
-        // Select in chat manager
+        // Initialize chat with selected chatbot (session created on first message)
         await Chat.selectChatbot(chatbot);
-        
-        // Close mobile sidebar
-        document.getElementById('sidebar')?.classList.remove('open');
-    },
+    }
     
     /**
-     * Select session
+     * Show welcome screen
      */
-    async selectSession(session) {
-        // Update UI
-        document.querySelectorAll('.session-item').forEach(item => {
-            item.classList.remove('active');
-        });
+    showWelcomeScreen() {
+        document.getElementById('welcome-screen').classList.remove('hidden');
+        document.getElementById('chat-messages').classList.add('hidden');
+        document.getElementById('message-input-area').classList.add('hidden');
+        document.getElementById('chat-header').classList.add('hidden');
         
-        const selectedItem = document.querySelector(`[data-session-id="${session.id}"]`);
-        selectedItem?.classList.add('active');
-        
-        // Load session
-        await Chat.loadSession(session.id);
-        
-        // Close mobile sidebar
-        document.getElementById('sidebar')?.classList.remove('open');
-    },
+        // Clear current session
+        Chat.currentSession = null;
+        Chat.currentChatbot = null;
+        Chat.messages = [];
+    }
     
     /**
-     * Update chatbot info
+     * Show chat interface
      */
-    updateChatbotInfo(chatbot) {
-        const nameElement = document.getElementById('current-chatbot-name');
-        const descElement = document.getElementById('current-chatbot-desc');
-        const avatarIcon = document.getElementById('chatbot-avatar-icon');
+    showChatInterface() {
+        document.getElementById('welcome-screen').classList.add('hidden');
+        document.getElementById('chat-messages').classList.remove('hidden');
+        document.getElementById('message-input-area').classList.remove('hidden');
+        document.getElementById('chat-header').classList.remove('hidden');
         
-        if (nameElement) nameElement.textContent = chatbot.name;
-        if (descElement) descElement.textContent = chatbot.description;
-        
-        // Update theme color
-        document.documentElement.style.setProperty('--primary-color', chatbot.theme_color || '#667eea');
-    },
+        // Clear messages
+        this.clearMessages();
+    }
     
     /**
-     * Show suggested prompts
+     * Render message in NextJS style
      */
-    showSuggestedPrompts(prompts) {
-        const container = document.getElementById('suggested-prompts');
-        if (!container) return;
+    renderMessage(message) {
+        const container = document.getElementById('messages-container');
+        const messageEl = document.createElement('div');
+        messageEl.className = 'text-sm message-enter';
+        messageEl.setAttribute('data-message-id', message.id);
         
-        container.innerHTML = '';
-        
-        if (prompts.length === 0) {
-            container.classList.add('hidden');
-            return;
+        // Extract content text based on NextJS format
+        let contentText = '';
+        if (typeof message.content === 'string') {
+            contentText = message.content;
+        } else if (Array.isArray(message.content) && message.content[0]) {
+            contentText = message.content[0].text || message.content[0].content || '';
         }
         
-        container.classList.remove('hidden');
+        if (message.role === 'user') {
+            // User message (right-aligned, gray background)
+            messageEl.innerHTML = `
+                <div class="flex justify-end">
+                    <div>
+                        <div class="ml-4 rounded-[16px] px-4 py-2 md:ml-24 bg-[#ededed] text-stone-900 font-light">
+                            <div class="markdown-content">
+                                ${this.formatContent(contentText)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Assistant message (left-aligned, white background)
+            messageEl.innerHTML = `
+                <div class="flex flex-col">
+                    <div class="flex">
+                        <div class="mr-4 rounded-[16px] px-4 py-2 md:mr-24 text-black bg-white font-light">
+                            <div class="markdown-content">
+                                ${this.formatContent(contentText)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
-        prompts.forEach(prompt => {
-            const chip = Utils.createElement('button', ['prompt-chip']);
-            chip.textContent = prompt;
-            chip.addEventListener('click', () => {
-                const input = document.getElementById('message-input');
-                input.value = prompt;
-                input.dispatchEvent(new Event('input'));
-                input.focus();
-            });
-            container.appendChild(chip);
-        });
-    },
+        container.appendChild(messageEl);
+        this.scrollToBottom();
+    }
     
     /**
-     * Clear messages
+     * Update streaming message
+     */
+    updateStreamingMessage(message) {
+        const element = document.querySelector(`[data-message-id="${message.id}"]`);
+        if (element) {
+            const contentDiv = element.querySelector('.markdown-content');
+            if (contentDiv) {
+                // Extract content text based on NextJS format
+                let contentText = '';
+                if (typeof message.content === 'string') {
+                    contentText = message.content;
+                } else if (Array.isArray(message.content) && message.content[0]) {
+                    contentText = message.content[0].text || message.content[0].content || '';
+                }
+                
+                contentDiv.innerHTML = this.formatContent(contentText);
+            }
+        } else {
+            this.renderMessage(message);
+        }
+        this.scrollToBottom();
+    }
+    
+    /**
+     * Format message content
+     */
+    formatContent(content) {
+        if (!content) return '';
+        
+        // Simple markdown-like formatting
+        let formatted = content
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+        
+        return formatted;
+    }
+    
+    /**
+     * Show loading indicator
+     */
+    showLoading(show = true) {
+        const loading = document.getElementById('loading-message');
+        if (show) {
+            loading.classList.remove('hidden');
+            this.scrollToBottom();
+        } else {
+            loading.classList.add('hidden');
+        }
+    }
+    
+    /**
+     * Clear all messages
      */
     clearMessages() {
-        const messagesList = document.getElementById('messages-list');
-        messagesList.innerHTML = '';
-    },
+        const container = document.getElementById('messages-container');
+        container.innerHTML = '';
+    }
     
     /**
      * Scroll to bottom
      */
     scrollToBottom() {
-        const container = document.getElementById('messages-container');
-        container.scrollTop = container.scrollHeight;
-    },
+        const scrollAnchor = document.getElementById('scroll-anchor');
+        if (scrollAnchor) {
+            scrollAnchor.scrollIntoView({ behavior: 'instant' });
+        }
+    }
     
     /**
-     * Show loading
+     * Restore previous state from storage
      */
-    showLoading(show) {
-        const loadingScreen = document.getElementById('loading-screen');
-        if (show) {
-            loadingScreen?.classList.remove('hidden');
+    async restorePreviousState() {
+        const currentSession = Storage.getCurrentSession();
+        const currentChatbot = Storage.getCurrentChatbot();
+        
+        console.log('🔄 Restoring previous state:', { currentSession, currentChatbot });
+        
+        if (currentSession && currentChatbot) {
+            // Set current state in Chat manager
+            Chat.currentSession = currentSession;
+            Chat.currentChatbot = currentChatbot;
+            
+            // Show chat interface
+            this.showChatInterface();
+            
+            // Update header
+            document.getElementById('current-chatbot-name').textContent = currentChatbot.name;
+            document.getElementById('current-chatbot-desc').textContent = currentChatbot.description;
+            
+            // Load cached messages
+            const cachedMessages = Storage.getCachedMessages(currentSession.id);
+            console.log(`📂 Found ${cachedMessages.length} cached messages for session ${currentSession.id}`);
+            
+            if (cachedMessages.length > 0) {
+                Chat.messages = [];
+                this.clearMessages();
+                
+                cachedMessages.forEach(msg => {
+                    Chat.messages.push(msg);
+                    this.renderMessage(msg);
+                });
+                
+                console.log('✅ Restored chat history');
+            }
         } else {
-            loadingScreen?.classList.add('hidden');
+            console.log('ℹ️ No previous state to restore');
         }
-    },
+        
+        // Load recent sessions for sidebar
+        await this.loadRecentSessions();
+    }
+    
+    /**
+     * Load recent sessions
+     */
+    async loadRecentSessions() {
+        try {
+            const sessions = await API.getSessions(10, 0); // Get last 10 sessions
+            this.renderRecentSessions(sessions);
+        } catch (error) {
+            console.log('Could not load recent sessions:', error);
+            // Try to load from cache
+            const cachedSessions = Storage.getCachedSessions();
+            if (cachedSessions.length > 0) {
+                this.renderRecentSessions(cachedSessions.slice(0, 10));
+            }
+        }
+    }
+    
+    /**
+     * Render recent sessions
+     */
+    renderRecentSessions(sessions) {
+        const container = document.getElementById('session-list');
+        container.innerHTML = '';
+        
+        if (sessions.length === 0) {
+            container.innerHTML = '<div class="text-sm text-gray-500 px-3 py-2">最近のチャットがありません</div>';
+            return;
+        }
+        
+        sessions.forEach(session => {
+            const item = document.createElement('div');
+            item.className = 'group p-2 rounded-lg hover:bg-gray-100 text-sm transition-colors relative';
+            
+            // Format date
+            const date = new Date(session.created_at || session.last_activity);
+            const formattedDate = date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            item.innerHTML = `
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 cursor-pointer session-content" data-session-id="${session.id}">
+                        <div class="font-medium text-gray-900 truncate">${session.name || 'タイトルなしチャット'}</div>
+                        <div class="text-xs text-gray-500 mt-1">${formattedDate} • ${session.message_count || 0}件のメッセージ</div>
+                    </div>
+                    <button class="delete-session opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all ml-2" 
+                            data-session-id="${session.id}" 
+                            title="チャットを削除">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            
+            // Add click handler for session loading
+            item.querySelector('.session-content').addEventListener('click', async () => {
+                await this.loadSession(session);
+            });
+            
+            // Add click handler for delete button
+            item.querySelector('.delete-session').addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.deleteSession(session);
+            });
+            
+            container.appendChild(item);
+        });
+    }
+    
+    /**
+     * Load a specific session
+     */
+    async loadSession(session) {
+        try {
+            // Get full session data from API
+            const sessionData = await API.getSession(session.id);
+            
+            // Find the chatbot for this session
+            const chatbot = await API.getChatbot(sessionData.session.chatbot_id);
+            
+            // Update state
+            Chat.currentSession = sessionData.session;
+            Chat.currentChatbot = chatbot;
+            Storage.setCurrentSession(sessionData.session);
+            Storage.setCurrentChatbot(chatbot);
+            
+            // Show chat interface
+            this.showChatInterface();
+            
+            // Update header
+            document.getElementById('current-chatbot-name').textContent = chatbot.name;
+            document.getElementById('current-chatbot-desc').textContent = chatbot.description;
+            
+            // Clear and load messages
+            Chat.messages = [];
+            this.clearMessages();
+            
+            if (sessionData.messages && sessionData.messages.length > 0) {
+                sessionData.messages.forEach(msg => {
+                    // Convert to our format
+                    const message = {
+                        id: msg.id,
+                        type: 'message',
+                        role: msg.role,
+                        content: Array.isArray(msg.content) ? msg.content : [{ type: 'output_text', text: msg.raw_content || msg.content }],
+                        timestamp: msg.created_at
+                    };
+                    
+                    Chat.messages.push(message);
+                    this.renderMessage(message);
+                });
+            }
+            
+        } catch (error) {
+            console.error('Failed to load session:', error);
+            this.showNotification('チャットセッションの読み込みに失敗しました', 'error');
+        }
+    }
+    
+    /**
+     * Delete a session
+     */
+    async deleteSession(session) {
+        const confirmed = confirm(`チャット「${session.name || 'タイトルなしチャット'}」を削除しますか？この操作は元に戻せません。`);
+        if (!confirmed) return;
+        
+        try {
+            // Delete from server
+            await API.deleteSession(session.id);
+            console.log(`🗑️ Deleted session ${session.id} from server`);
+            
+            // Delete from local storage
+            Storage.clearCachedMessages(session.id);
+            
+            // Remove from cached sessions
+            let cachedSessions = Storage.getCachedSessions();
+            cachedSessions = cachedSessions.filter(s => s.id !== session.id);
+            Storage.cacheSessions(cachedSessions);
+            
+            // If this is the current session, go back to welcome screen
+            if (Chat.currentSession && Chat.currentSession.id === session.id) {
+                Chat.currentSession = null;
+                Chat.currentChatbot = null;
+                Chat.messages = [];
+                Storage.setCurrentSession(null);
+                Storage.setCurrentChatbot(null);
+                this.showWelcomeScreen();
+            }
+            
+            // Refresh the recent sessions list
+            await this.loadRecentSessions();
+            
+            console.log('✅ Session deleted successfully');
+            
+        } catch (error) {
+            console.error('Failed to delete session:', error);
+            this.showNotification('チャットセッションの削除に失敗しました', 'error');
+        }
+    }
+    
+    /**
+     * Bulk delete all sessions
+     */
+    async bulkDeleteSessions() {
+        const confirmed = confirm('全てのチャット履歴を削除しますか？この操作は元に戻せず、全ての会話が削除されます。');
+        if (!confirmed) return;
+        
+        try {
+            // Delete from server
+            const result = await API.bulkDeleteSessions();
+            console.log('🗑️ Bulk deleted sessions:', result.message);
+            
+            // Clear all local storage
+            Storage.cacheSessions([]);
+            
+            // Clear all session messages from localStorage
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.startsWith('session_messages_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            // If currently in a chat session, go back to welcome screen
+            if (Chat.currentSession) {
+                Chat.currentSession = null;
+                Chat.currentChatbot = null;
+                Chat.messages = [];
+                Storage.setCurrentSession(null);
+                Storage.setCurrentChatbot(null);
+                this.showWelcomeScreen();
+            }
+            
+            // Refresh the recent sessions list
+            await this.loadRecentSessions();
+            
+            console.log('✅ All sessions deleted successfully');
+            
+        } catch (error) {
+            console.error('Failed to bulk delete sessions:', error);
+            this.showNotification('チャット履歴の削除に失敗しました', 'error');
+        }
+    }
+    
+    /**
+     * Delete the current session
+     */
+    async deleteCurrentSession() {
+        if (!Chat.currentSession) {
+            this.showNotification('削除するセッションがありません', 'warning');
+            return;
+        }
+        
+        const confirmed = confirm(`現在のチャット「${Chat.currentSession.name || 'タイトルなしチャット'}」を削除しますか？この操作は元に戻せません。`);
+        if (!confirmed) return;
+        
+        try {
+            // Delete from server
+            await API.deleteSession(Chat.currentSession.id);
+            console.log(`🗑️ Deleted current session ${Chat.currentSession.id} from server`);
+            
+            // Delete from local storage
+            Storage.clearCachedMessages(Chat.currentSession.id);
+            
+            // Remove from cached sessions
+            let cachedSessions = Storage.getCachedSessions();
+            cachedSessions = cachedSessions.filter(s => s.id !== Chat.currentSession.id);
+            Storage.cacheSessions(cachedSessions);
+            
+            // Clear current state
+            Chat.currentSession = null;
+            Chat.currentChatbot = null;
+            Chat.messages = [];
+            Storage.setCurrentSession(null);
+            Storage.setCurrentChatbot(null);
+            
+            // Go back to welcome screen
+            this.showWelcomeScreen();
+            
+            // Refresh the recent sessions list
+            await this.loadRecentSessions();
+            
+            console.log('✅ Current session deleted successfully');
+            
+        } catch (error) {
+            console.error('Failed to delete current session:', error);
+            this.showNotification('チャットの削除に失敗しました', 'error');
+        }
+    }
     
     /**
      * Show notification
      */
     showNotification(message, type = 'info') {
-        const notification = Utils.createElement('div', ['notification', `notification-${type}`]);
-        notification.innerHTML = `
-            <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
-            <span>${message}</span>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        // Add enter animation
-        setTimeout(() => {
-            notification.classList.add('notification-enter');
-        }, 10);
-        
-        // Remove after 3 seconds
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+        // Simple alert for now - could be improved with toast notifications
+        if (type === 'error') {
+            alert('エラー: ' + message);
+        } else if (type === 'warning') {
+            alert('警告: ' + message);
+        } else if (type === 'success') {
+            alert('成功: ' + message);
+        } else {
+            console.log(message);
+        }
     }
-};
+}
+
+// Create global UI instance
+const UI = new NextJSUI();
